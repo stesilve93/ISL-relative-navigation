@@ -5,6 +5,7 @@
 % Earth
 data.env.r_e     = 6371;                          % [km]
 data.env.mi      = 398600.44;                     % [km^3/s^2]
+data.env.w_e     = 7.2921150e-5;                  % [rad/s] Earth's angular speed
 
 % Sun
 data.env.r_sun   = 149.5978707e6;                 % [km] 1 AU
@@ -13,6 +14,10 @@ data.env.n_sun   = 2*pi/data.env.T_sun;           % [rad/s] Earth's mean motion
 data.env.eps     = deg2rad(23.45);                % [rad] ecliptic plane tilt
 data.env.srp     = 1358/299792458;                % [Pa] solar radiation pressure (1AU)
 data.env.th0_sun = deg2rad(-79.75);               % [deg] Sun initial true anomaly
+data.env.mi_sun  = 132.712e9;                     % [km^3/s^2]
+
+% Moon
+data.env.mi_moon = 4903;                          % [km^3/s^2]
 
 %% Formation Flying
 data.ff.b        = 150;                           % [km] Nominal baseline
@@ -33,6 +38,10 @@ data.satA.orbit.T       = 2*pi*sqrt(...
 data.satA.orbit.omv     = 2*pi/data.satA.orbit.T;
 
 % Spacecraft properties
+data.satA.area          = 0.1^2*6*2 + 0.1^2*sqrt(2)*6;
+data.satA.mass          = 11.4;
+data.satA.CD            = 2.2;
+data.satA.BC            = data.satA.CD * data.satA.area / data.satA.mass;
 
 %% Spacecraft B - Chaser
 % Orbital parameters
@@ -55,15 +64,22 @@ clear th
 data.satB.orbit.T       = 2*pi*sqrt(...
     data.satB.orbit.a^3/data.env.mi);             % [s]
 
+% Spacecraft properties
+data.satB.area          = 0.1^2*6*2 + 0.1^2*sqrt(2)*6;
+data.satB.mass          = 11.4;
+data.satB.CD            = 2.2;
+data.satB.BC            = data.satB.CD * data.satB.area / data.satB.mass;
+
 %% Sensors
 % Distance measurement
 data.sens.sig   = 1;                              % [km] Sensor standard deviation
 data.sens.st    = 10;                             % [s] Sample time
 
 %% Simulation
-data.sim.n_orb  = 3;
+data.sim.n_orb  = 2;
 data.sim.time   = data.sim.n_orb * data.satA.orbit.T;
-data.sim.date   = juliandate(2020, 1, 1, 12, 0, 0);
+data.sim.date   = [2020, 1, 1, 12, 0, 0];
+data.sim.jdate  = juliandate(2020, 1, 1, 12, 0, 0);
 
 %% WIP
 
