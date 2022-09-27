@@ -42,7 +42,7 @@ y = r_rel.^2;
 
 % Covariance estimate
 G = diag(r_rel);
-R = data.sens.sig^2 * eye(m);
+R = data.sens.isr.sig^2 * eye(m);
 Ry = 4*G*R*G';
 Rinv = inv(Ry);
 

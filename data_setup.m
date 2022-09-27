@@ -39,7 +39,7 @@ data.satA.orbit.omv     = 2*pi/data.satA.orbit.T;
 
 % Spacecraft properties
 data.satA.area          = 0.1^2*6*2 + 0.1^2*sqrt(2)*6;
-data.satA.mass          = 11.4;
+data.satA.mass          = 24;
 data.satA.CD            = 2.2;
 data.satA.BC            = data.satA.CD * data.satA.area / data.satA.mass;
 
@@ -66,17 +66,28 @@ data.satB.orbit.T       = 2*pi*sqrt(...
 
 % Spacecraft properties
 data.satB.area          = 0.1^2*6*2 + 0.1^2*sqrt(2)*6;
-data.satB.mass          = 11.4;
+data.satB.mass          = 24;
 data.satB.CD            = 2.2;
 data.satB.BC            = data.satB.CD * data.satB.area / data.satB.mass;
 
 %% Sensors
 % Distance measurement
-data.sens.sig   = 1;                              % [km] Sensor standard deviation
-data.sens.st    = 10;                             % [s] Sample time
+data.sens.isr.sig   = 0.3;                              % [km] Sensor standard deviation
+data.sens.isr.st    = 10;                             % [s] Sample time
+
+% GPS receiver
+% data.sens.gps.sig_p   = 10e-3;
+data.sens.gps.sig_p   = 1;
+data.sens.gps.sig_v   = 0.5e-3;
+data.sens.gps.sig_t   = 20e-9;
+data.sens.gps.stA   = 60;
+data.sens.gps.stB   = 62;
+
+%% Filter
+data.filt.st = 60;
 
 %% Simulation
-data.sim.n_orb  = 2;
+data.sim.n_orb  = 1;
 data.sim.time   = data.sim.n_orb * data.satA.orbit.T;
 data.sim.date   = [2020, 1, 1, 12, 0, 0];
 data.sim.jdate  = juliandate(2020, 1, 1, 12, 0, 0);
@@ -84,40 +95,37 @@ data.sim.jdate  = juliandate(2020, 1, 1, 12, 0, 0);
 %% WIP
 
 % Spacecraft properties - 6U CubeSat
-m_sc    = 11.4;                       % [kg] s/c mass (max)
-m_sa    = 0.3;                        % [kg] deployable solar arrays mass
-dim_sc  = [366, 100, 226.3]*1e-3;     % [m] s/c dimensions (main body)
-dim_sa  = [366, 225]*1e-3;            % [m] solar arrays dimensions
-mag_res = [1; 1; 1]*1e-3;             % [A*m^2] residual magnetic moment
+data.satAB.dim_sc = [360, 240, 230]*1e-3;     % [m] s/c dimensions (main body)
+data.satAB.dim_sa = [360, 600]*1e-3;          % [m] solar arrays dimensions
 
 % Spacecraft surfaces in [m^2]
-A_sc   = [dim_sc(2)*dim_sc(3); dim_sc(2)*dim_sc(1); dim_sc(1)*dim_sc(3)];
-A_sa   = dim_sa(1)*dim_sa(2);
+data.satAB.A_sc   = [data.satAB.dim_sc(2)*data.satAB.dim_sc(3);
+                     data.satAB.dim_sc(2)*data.satAB.dim_sc(1);
+                     data.satAB.dim_sc(1)*data.satAB.dim_sc(3)];
+data.satAB.A_sa   =  data.satAB.dim_sa(1)*data.satAB.dim_sa(2)*ones(4,1);
 
-A_i    = [A_sc(1); A_sc(2); A_sc(3); A_sc(1); A_sc(2); A_sc(3); ...
-          A_sa; A_sa; A_sa; A_sa]';   % [m^2] surfaces vector
+data.satAB.A_i    = [data.satAB.A_sc(1:3);
+                     data.satAB.A_sc(1:3);
+                     data.satAB.A_sa]';          % [m^2] surfaces vector
 
 % Normal vector to each surface (Body F.O.R.)
-n_sa   = [0; 0; 1];
-n_i    = [eye(3), -eye(3), n_sa, -n_sa, n_sa, -n_sa];
+data.satAB.n_sa   = [0; 0; 1];
+data.satAB.n_i    = [eye(3), -eye(3), data.satAB.n_sa, -data.satAB.n_sa, data.satAB.n_sa, -data.satAB.n_sa];
 
 % Center of pressure coordinates for each surface in [m] Body F.O.R.
+data.satAB.r_i = zeros(3,10);
 % Main body
-CG_1  = [dim_sc(1)/2; 0; 0];
-CG_2  = [0; dim_sc(3)/2; 0];
-CG_3  = [0; 0; dim_sc(2)/2];
-CG_4  = -CG_1;
-CG_5  = -CG_2;
-CG_6  = -CG_3;
+data.satAB.r_i(:,1)   = [data.satAB.dim_sc(1)/2; 0; 0];
+data.satAB.r_i(:,2)   = [0; data.satAB.dim_sc(3)/2; 0];
+data.satAB.r_i(:,3)   = [0; 0; data.satAB.dim_sc(2)/2];
+data.satAB.r_i(:,4:6) = -data.satAB.r_i(:,1:3);
 % Solar arrays
-CG_7  = [0; dim_sc(3)/2 + dim_sa(2)/2; dim_sc(2)/2];
-CG_8  = CG_7;
-CG_9  = CG_7.*[1; -1; 1];
-CG_10 = CG_9;
-
-r_i   = [CG_1, CG_2, CG_3, CG_4, CG_5, CG_6, CG_7, CG_8, CG_9, CG_10];
+data.satAB.r_i(:,7)   = [0; data.satAB.dim_sc(3)/2 + data.satAB.dim_sa(2)/2; data.satAB.dim_sc(2)/2];
+data.satAB.r_i(:,8)   = data.satAB.r_i(:,7);
+data.satAB.r_i(:,9)   = data.satAB.r_i(:,7).*[1; -1; 1];
+data.satAB.r_i(:,10)  = data.satAB.r_i(:,9);
 
 % Optical properties for each surface
-rhoS  = [ones(1,6)*0.5, ones(1,4)*0.8];	 % [-] reflectivity
-rhoD  = ones(1,10)*0.1;                  % [-] diffusivity
+data.satAB.rhoS  = [ones(1,6)*0.5, ones(1,4)*0.8];	 % [-] reflectivity
+data.satAB.rhoD  = ones(1,10)*0.1;                   % [-] diffusivity
 
