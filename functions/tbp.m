@@ -1,4 +1,4 @@
-function dy = tbp(t, x, acc)
+function dy = tbp(~, x, acc)
 
     mi = 398600;
 
