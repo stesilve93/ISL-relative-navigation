@@ -154,6 +154,8 @@ tB_rec = tB + del;
 [log_measB, ind_measB] = ismembertol(tF, tB_rec, toll, 'DataScale', 1);
 
 %% Extended kalman filter
+% RK4_err = zeros(1,nF-1);
+
 for i = 2:nF
     
     % State time update (prediction)
@@ -171,6 +173,16 @@ for i = 2:nF
          
     [~, x_m] = ode45(@tbp, t_span, x_int, opt, a_int);
     x_m = x_m(end,:);
+    
+%     
+%     %%%%%%%%%%%%%%%%% RK4 TEST %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%     step = 0.1;
+%     odefun = @(x,t) tbp(t,x,a_int);
+%     [x_sol,t_sol,fevals,cpu_time] = RK4(odefun,x_int,step,t_span);
+%     RK4_sing = x_sol(:,end) - x_m';
+%     RK4_err(i-1) = sum(abs(RK4_sing));
+%     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%     
     
     % Empirical acceleration time update
     a_m = m_gm*a_int;

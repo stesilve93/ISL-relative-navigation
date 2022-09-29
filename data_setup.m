@@ -92,7 +92,7 @@ data.sim.time   = data.sim.n_orb * data.satA.orbit.T;
 data.sim.date   = [2020, 1, 1, 12, 0, 0];
 data.sim.jdate  = juliandate(2020, 1, 1, 12, 0, 0);
 
-%% WIP
+%% SRP
 
 % Spacecraft properties - 6U CubeSat
 data.satAB.dim_sc = [360, 240, 230]*1e-3;     % [m] s/c dimensions (main body)
@@ -129,3 +129,30 @@ data.satAB.r_i(:,10)  = data.satAB.r_i(:,9);
 data.satAB.rhoS  = [ones(1,6)*0.5, ones(1,4)*0.8];	 % [-] reflectivity
 data.satAB.rhoD  = ones(1,10)*0.1;                   % [-] diffusivity
 
+%% EKF
+data.ekf.st = 1;
+
+% Process noise
+tau = 600;
+m_gm = exp(-data.ekf.st/tau);
+data.ekf.siga = 1e-5;
+qm = data.ekf.siga^2*(1-m_gm^2)*eye(3);
+
+data.ekf.Q = [zeros(6,18);
+              zeros(3,6), qm, zeros(3,9);
+              zeros(6,18);
+              zeros(3,15), qm];
+clear('tau','m_gm','qm')
+
+% Measurement noise
+data.ekf.sigp = eye(3)*data.sens.gps.sig_p;
+data.ekf.sigv = eye(3)*data.sens.gps.sig_v;
+data.ekf.R = [data.ekf.sigp,     zeros(3);
+              zeros(3), data.ekf.sigv];
+data.ekf.R = data.ekf.R*data.ekf.st;
+data.ekf.R = data.ekf.R*1e2;
+
+data.ekf.Rd = data.sens.isr.sig;
+data.ekf.Rd = data.ekf.Rd*1e6;
+
+[data.ekf.x0, data.ekf.P0] = init_state(data);
