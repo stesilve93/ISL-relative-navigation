@@ -2,16 +2,27 @@ clear
 
 %% Data loading
 addpath('functions')
-load('sim_data.mat')
+addpath('functions/EKF_slk')
 data_setup
+
+list = {'Previous run data','Run simulation'};
+[indx,~] = listdlg('PromptString','Select data source:','ListString',list,'SelectionMode','single');
+
+switch indx
+    case 1
+        load('sim_data.mat')
+    case 2
+        simout = sim('ff_model');
+        save('sim_data.mat','simout')
+end
 
 %% Mode selector
 % Logical switch
 % m_upd     Use measurements for state update
 % m_sync    Propagate measurements up to filter run time
 % m_d       Include ISR measure
-m_upd  = 1;
-m_sync = 1;
+m_gps  = 0;
+m_sync = 0;
 m_d    = 1;
 
 %% Pre-processing
@@ -58,8 +69,14 @@ tstate = [tposA, tvelA, taccA, tposB, tvelB, taccB];
 trelstate = [simout.relpos, simout.relvel, simout.relacc];
 
 % Distance measurements
-td = ttime;
+td    = simout.r_meas_time;
 measd = simout.r_meas.^2;
+
+% Simulink EKF results
+estate = simout.estatec;
+testate = simout.estate.satA.posA.Time;
+
+
 
 %% Initialization
 % filter time vector
@@ -67,19 +84,24 @@ stF = 1;
 tF = 0:stF:simout.tout(end);
 tF = tF';
 
+if any(tF ~= testate)
+    warning('Different time vectors')
+end
+
 nF = length(tF);
 
 % filter settings
 % Measurement noise
-sigp = eye(3)*data.sens.gps.sig_p;
-sigv = eye(3)*data.sens.gps.sig_v;
+sigp = eye(3)*data.sens.gps.sig_p^2;
+sigv = eye(3)*data.sens.gps.sig_v^2;
 R = [sigp,     zeros(3);
      zeros(3), sigv];
 R = R*stF;
-R = R*1e2;
+R = R*1e-1;
 
-Rd = data.sens.isr.sig;
-Rd = Rd*1e6;
+Rd = data.sens.isr.sig^2;
+Rd = Rd * stF;
+Rd = Rd*1e4;
 
 % Process noise
 tau = 600;
@@ -139,17 +161,17 @@ ind_measd_prev = 0;
 dt_tol = 1e-4;
 
 countA = 0;
+enableA = zeros(nF,1);
+
 countB = 0;
+enableB = zeros(nF,1);
+
 countd = 0;
+enableD = zeros(nF,1);
 
 %% Delay
-c = 3e8;
-BL = 150e3;
-del = BL/c;
-del = 2*del;
-
 % Filter time at signal from B reception
-tB_rec = tB + del;
+tB_rec = tB + data.sens.del;
 % toll = 2e-3;
 [log_measB, ind_measB] = ismembertol(tF, tB_rec, toll, 'DataScale', 1);
 
@@ -202,7 +224,7 @@ for i = 2:nF
     x_p = x_m;
     P_p = P_m;
     
-    if log_measA(i) && ind_measA(i) ~= ind_measA_prev && tF(i)>=tA(ind_measA(i)) && m_upd
+    if log_measA(i) && ind_measA(i) ~= ind_measA_prev && tF(i)>=tA(ind_measA(i)) && m_gps
         % Measurement synchronization
         y_act = measA(ind_measA(i),:)';
         R_act = R;
@@ -237,12 +259,13 @@ for i = 2:nF
         ind_measA_prev = ind_measA(i);
         
         countA = countA +1;
+        enableA(i) = 1;
         
 %         tF(i)
 %         tA(ind_measA(i))
     end
     
-    if log_measB(i) && ind_measB(i) ~= ind_measB_prev && tF(i)>=tB_rec(ind_measB(i)) && m_upd
+    if log_measB(i) && ind_measB(i) ~= ind_measB_prev && tF(i)>=tB_rec(ind_measB(i)) && m_gps
         
         % Measurement synchronization
         y_act = measB(ind_measB(i),:)';
@@ -278,6 +301,7 @@ for i = 2:nF
         ind_measB_prev = ind_measB(i);
         
         countB = countB +1;
+        enableB(i) = 1;
         
 %         tF(i)
 %         tB_rec(ind_measB(i))
@@ -305,6 +329,7 @@ for i = 2:nF
         ind_measd_prev = ind_measd(i);
         
         countd = countd +1;
+        enableD(i) = 1;
         
         %         tF(i)
         %         td(ind_measd(i))
@@ -327,9 +352,13 @@ mtstate = [tposA, tvelA, a_d_A, tposB, tvelB, a_d_B];
 
 % Estimated relative state computation
 xrel = zeros(nF,9);
+xrel_slk = zeros(nF,9);
 for i = 1:nF
     xrel(i,:) = relstate(x(i,:));
+    xrel_slk(i,:) = relstate(estate(i,:));
 end
+
+
 
 %% Plots
 list = {'Yes','No'};
@@ -346,11 +375,17 @@ list = {'Absolute','Relative','Absolute - Error','Relative - Error',};
 list = {'Yes','No'};
 [cov_plot,~] = listdlg('PromptString','Include covariance bounds?','ListString',list,'SelectionMode','single');
 
+% Comparison with real-time Simulink EKF
+list = {'No','Yes'};
+[indx_slk,~] = listdlg('PromptString','Compare with Simulink results?','ListString',list,'SelectionMode','single');
+
+% Labels strings
 ylabel_list = {'r_x^A [km]','r_y^A [km]','r_z^A [km]','v_x^A [km/s]','v_y^A [km/s]','v_z^A [km/s]','aD_x^A [km/s^2]','aD_y^A [km/s^2]','aD_z^A [km/s^2]',...
                'r_x^B [km]','r_y^B [km]','r_z^B [km]','v_x^B [km/s]','v_y^B [km/s]','v_z^B [km/s]','aD_x^B [km/s^2]','aD_y^B [km/s^2]','aD_z^B [km/s^2]'};
 
 rel_title_list = {'Relative Position','Relative Velocity','Relative Acceleration'};
 
+% Plotting
 switch indx
     
     case 1
@@ -389,6 +424,7 @@ switch indx
         
     case 3
         x_ds = interp1(tF,x,ttime);
+        x_slk_ds = interp1(tF,estate,ttime);
         n_pl = 1;
         for i = 1:6
             nfigure(i,3,2)
@@ -397,6 +433,10 @@ switch indx
                 hold on
                 grid on
                 plot(ttime, x_ds(:,n_pl)-mtstate(:,n_pl))
+                
+                if indx_slk == 2
+                    plot(ttime, x_slk_ds(:,n_pl)-mtstate(:,n_pl))
+                end
                 
                 switch cov_plot
                     case 1
@@ -413,6 +453,7 @@ switch indx
         
     case 4
         xrel_ds = interp1(tF,xrel,ttime);
+        xrel_slk_ds = interp1(tF,xrel_slk,ttime);
         n_pl = 1;
         for i = 1:3
             nfigure(i,3,1)
@@ -421,6 +462,10 @@ switch indx
                 hold on
                 grid on
                 plot(ttime, xrel_ds(:,n_pl)-trelstate(:,n_pl))
+                
+                if indx_slk == 2
+                    plot(ttime, xrel_slk_ds(:,n_pl)-trelstate(:,n_pl))
+                end
                 
                 if i == 1
                     switch cov_plot
@@ -442,3 +487,19 @@ switch indx
         end
         
 end
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -12,7 +12,8 @@ data.env.r_sun   = 149.5978707e6;                 % [km] 1 AU
 data.env.T_sun   = 31556952;                      % [s] Earth's orbital period
 data.env.n_sun   = 2*pi/data.env.T_sun;           % [rad/s] Earth's mean motion
 data.env.eps     = deg2rad(23.45);                % [rad] ecliptic plane tilt
-data.env.srp     = 1358/299792458;                % [Pa] solar radiation pressure (1AU)
+data.env.c       = 299792458;
+data.env.srp     = 1358/data.env.c;               % [Pa] solar radiation pressure (1AU)
 data.env.th0_sun = deg2rad(-79.75);               % [deg] Sun initial true anomaly
 data.env.mi_sun  = 132.712e9;                     % [km^3/s^2]
 
@@ -83,6 +84,10 @@ data.sens.gps.sig_t   = 20e-9;
 data.sens.gps.stA   = 60;
 data.sens.gps.stB   = 62;
 
+% Delay (Time of Flight satB->satA)
+data.sens.del = data.ff.b*1e3/data.env.c;
+data.sens.del = data.sens.del * 2;
+
 %% Filter
 data.filt.st = 60;
 
@@ -145,14 +150,15 @@ data.ekf.Q = [zeros(6,18);
 clear('tau','m_gm','qm')
 
 % Measurement noise
-data.ekf.sigp = eye(3)*data.sens.gps.sig_p;
-data.ekf.sigv = eye(3)*data.sens.gps.sig_v;
+data.ekf.sigp = eye(3)*data.sens.gps.sig_p^2;
+data.ekf.sigv = eye(3)*data.sens.gps.sig_v^2;
+
 data.ekf.R = [data.ekf.sigp,     zeros(3);
               zeros(3), data.ekf.sigv];
 data.ekf.R = data.ekf.R*data.ekf.st;
-data.ekf.R = data.ekf.R*1e2;
+data.ekf.R = data.ekf.R * 1e-1;
 
-data.ekf.Rd = data.sens.isr.sig;
-data.ekf.Rd = data.ekf.Rd*1e6;
+data.ekf.Rd = data.sens.isr.sig^2;
+data.ekf.Rd = data.ekf.Rd * 1e4;
 
 [data.ekf.x0, data.ekf.P0] = init_state(data);
