@@ -1,4 +1,4 @@
-function xrel = relstate(x)
+function [xrel, Prelpos_new_rot] = relstate(x, P)
 mi = 398600;
 
 rA = x(1:3);
@@ -26,4 +26,19 @@ a_rel = rot*a_rel';
 
 xrel = [r_rel', v_rel', a_rel'];
 
+% Covariance of relative state
+P_A  = P(  1:3,   1:3);
+P_B  = P(10:12, 10:12);
+P_AB = P(  1:3, 10:12);
+P_BA = P(10:12,   1:3);
+
+P_rel = [P_A, P_AB;
+         P_BA, P_B];
+
+reltrn = [-eye(3), eye(3)];
+
+Prelpos_new = reltrn*P_rel*reltrn';
+Prelpos_rot = rot*Prelpos_new*rot';
+
+Prelpos_new_rot = sqrt(diag(Prelpos_rot));
 end

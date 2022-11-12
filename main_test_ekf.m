@@ -3,6 +3,8 @@ clear
 %% Data loading
 addpath('functions')
 addpath('functions/EKF_slk')
+addpath('IRI')
+
 data_setup
 
 list = {'Previous run data','Run simulation'};
@@ -74,6 +76,7 @@ measd = simout.r_meas.^2;
 
 % Simulink EKF results
 estate = simout.estatec;
+eP     = simout.P;
 testate = simout.estate.satA.posA.Time;
 
 
@@ -97,16 +100,16 @@ sigv = eye(3)*data.sens.gps.sig_v^2;
 R = [sigp,     zeros(3);
      zeros(3), sigv];
 R = R*stF;
-R = R*1e-1;
+R = R*1e0;
 
-Rd = data.sens.isr.sig^2;
+Rd = data.sens.isr.sig_thc^2;
 Rd = Rd * stF;
-Rd = Rd*1e4;
+Rd = Rd*1e1;
 
 % Process noise
 tau = 600;
 m_gm = exp(-stF/tau);
-siga = 1e-5;
+siga = 5*1e-6;
 qm = siga^2*(1-m_gm^2)*eye(3);
 Q = [zeros(6,18);
      zeros(3,6), qm, zeros(3,9);
@@ -217,8 +220,8 @@ for i = 2:nF
     P_m = stm*P_prev*stm' + Q;
     
     % test stm performace
-    absErr = x_m' - stm*x_prev';
-    relErr = absErr./x_m'*100;
+%     absErr = x_m' - stm*x_prev';
+%     relErr = absErr./x_m'*100;
     
     % Update estimates in case of no measurements
     x_p = x_m;
@@ -353,26 +356,28 @@ mtstate = [tposA, tvelA, a_d_A, tposB, tvelB, a_d_B];
 % Estimated relative state computation
 xrel = zeros(nF,9);
 xrel_slk = zeros(nF,9);
+Prelpos = zeros(nF,3);
+
 for i = 1:nF
-    xrel(i,:) = relstate(x(i,:));
-    xrel_slk(i,:) = relstate(estate(i,:));
+    [xrel(i,:), Prelpos(i,:)] = relstate(x(i,:),       P(:,:,i));
+    [xrel_slk(i,:), ~]        = relstate(estate(i,:), eP(:,:,i));
 end
 
 
 
 %% Plots
-list = {'Yes','No'};
+list = {'No','Yes'};
 [indx,~] = listdlg('PromptString','Close previous plots?','ListString',list,'SelectionMode','single');
 
 switch indx
-    case 1
+    case 2
         close all
 end
 
 list = {'Absolute','Relative','Absolute - Error','Relative - Error',};
 [indx,~] = listdlg('PromptString','Select plot type:','ListString',list,'SelectionMode','single');
 
-list = {'Yes','No'};
+list = {'No','Yes'};
 [cov_plot,~] = listdlg('PromptString','Include covariance bounds?','ListString',list,'SelectionMode','single');
 
 % Comparison with real-time Simulink EKF
@@ -384,6 +389,10 @@ ylabel_list = {'r_x^A [km]','r_y^A [km]','r_z^A [km]','v_x^A [km/s]','v_y^A [km/
                'r_x^B [km]','r_y^B [km]','r_z^B [km]','v_x^B [km/s]','v_y^B [km/s]','v_z^B [km/s]','aD_x^B [km/s^2]','aD_y^B [km/s^2]','aD_z^B [km/s^2]'};
 
 rel_title_list = {'Relative Position','Relative Velocity','Relative Acceleration'};
+
+ylabel_list_rel = {'\delta r_x [km]', '\delta r_y [km]','\delta r_z [km]','\delta v_x [km/s]','\delta v_y [km/s]','\delta v_z [km/s]','\delta a_x [km/s^2]','\delta a_y [km/s^2]','\delta a_z [km/s^2]'};
+
+
 
 % Plotting
 switch indx
@@ -439,7 +448,7 @@ switch indx
                 end
                 
                 switch cov_plot
-                    case 1
+                    case 2
                         sig_p = sqrt(reshape(P(n_pl, n_pl, :), 1, nF));
                         plot(tF,  sig_p.*[-1; 1], 'r--')
                 end
@@ -469,17 +478,21 @@ switch indx
                 
                 if i == 1
                     switch cov_plot
-                        case 1
+                        case 2
                             covA  = reshape(P(n_pl,   n_pl,   :), 1, nF);
                             covB  = reshape(P(n_pl+9, n_pl+9, :), 1, nF);
                             covAB = reshape(P(n_pl,   n_pl+9, :), 1, nF);
                             sig_p = sqrt(covA+covB-2*covAB);
-                            plot(tF,  sig_p.*[-1; 1], 'r--')
+%                             plot(tF,  sig_p.*[-1; 1], 'b--')
+                            
+                            sig_p_new = Prelpos(:,n_pl)';
+                            plot(tF,   sig_p_new.*[-1; 1], 'r--')
                     end
                 end
                 
                 xlim([-inf,inf])
                 xlabel('Time [s]')
+                ylabel(ylabel_list_rel(n_pl))
                 legend
                 n_pl = n_pl + 1;
             end
